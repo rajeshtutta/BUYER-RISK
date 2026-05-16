@@ -1,0 +1,69 @@
+pipeline {
+    agent any
+
+    environment {
+        FRONTEND_DIR = "frontend"
+        BACKEND_DIR = "backend"
+    }
+
+    stages {
+
+        stage('Clone Repository') {
+            steps {
+                git branch: 'main',
+                url: 'https://github.com/sujanvijay/buyer-risk-dashboard.git',
+                credentialsId: 'github-token'
+            }
+        }
+
+        stage('Install Frontend Dependencies') {
+            steps {
+                dir("${FRONTEND_DIR}") {
+                    sh 'npm install'
+                }
+            }
+        }
+
+        stage('Build Frontend') {
+    steps {
+        dir('frontend') {
+            sh 'chmod +x node_modules/.bin/react-scripts'
+            sh 'npm run build'
+        }
+    }
+}
+
+        stage('Install Backend Dependencies') {
+            steps {
+                dir("${BACKEND_DIR}") {
+                    sh '''
+                    python3 -m venv venv
+                    . venv/bin/activate
+                    pip install --upgrade pip
+                    pip install fastapi uvicorn psycopg2-binary sqlalchemy python-multipart
+                    '''
+                }
+            }
+        }
+
+        stage('Deploy Backend') {
+    steps {
+        dir('backend') {
+            sh '''
+            pkill -f uvicorn || true
+            nohup venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000 &
+            '''
+        }
+    }
+}
+
+stage('Deploy Frontend') {
+    steps {
+        sh '''
+        rm -rf /var/www/html/*
+        cp -r frontend/build/* /var/www/html/
+        '''
+    }
+}
+    }
+}
